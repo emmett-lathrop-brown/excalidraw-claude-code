@@ -67,36 +67,6 @@ cd excalidraw-claude-code-setup
 - 既存プロジェクト（例: facet リポ）をテーマにするなら `--dir <path>` でそこに `.mcp.json` を置ける
   （※ そのリポに `.mcp.json` が追加される点に注意。不要なら `.gitignore` 推奨）
 
-## 手動でやる場合
-
-```bash
-# キャンバス常駐（リロード・再起動でも落ちない）
-docker run -d -p 3000:3000 --restart unless-stopped \
-  --name excalidraw-main ghcr.io/yctimlin/mcp_excalidraw-canvas:latest
-```
-
-ワークスペース直下に `.mcp.json` を置く（MCP も Docker で起動）:
-
-```json
-{
-  "mcpServers": {
-    "excalidraw": {
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm",
-        "--add-host=host.docker.internal:host-gateway",
-        "-e", "EXPRESS_SERVER_URL=http://host.docker.internal:3000",
-        "-e", "ENABLE_CANVAS_SYNC=true",
-        "ghcr.io/yctimlin/mcp_excalidraw:latest"
-      ]
-    }
-  }
-}
-```
-
-Claude Code が MCP を起動するたびに使い捨てコンテナ（`--rm`）が立ち上がり、
-`host.docker.internal:<port>` 経由でキャンバスへ接続します。
-
 ## 後片付け
 
 ```bash
