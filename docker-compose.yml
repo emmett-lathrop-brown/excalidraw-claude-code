@@ -1,0 +1,21 @@
+# Excalidraw canvas server (visual UI + REST/WebSocket API).
+# Prebuilt image — no local build needed. Stays up across reloads /
+# reboots via restart:unless-stopped.
+services:
+  canvas:
+    image: ghcr.io/yctimlin/mcp_excalidraw-canvas:latest
+    container_name: excalidraw-canvas
+    ports:
+      - "${CANVAS_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DEBUG=false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/health',(r)=>process.exit(r.statusCode===200?0:1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
