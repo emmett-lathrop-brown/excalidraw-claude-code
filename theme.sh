@@ -6,10 +6,11 @@
 # Open each theme's workspace in its own VSCode window → 1 window = 1 theme.
 #
 # Usage:
-#   ./setup.sh start [name] [--port N] [--dir PATH]   start a theme (default name: main)
-#   ./setup.sh stop  [name]                           stop & remove a theme (default: main)
-#   ./setup.sh list                                   list themes and their URLs
-#   ./setup.sh help                                   show this help
+#   ./theme.sh start [name] [--port N] [--dir PATH]   start a theme (default name: main)
+#   ./theme.sh stop  [name]                           stop & remove a theme (default: main)
+#   ./theme.sh stop-all                               stop & remove all themes
+#   ./theme.sh list                                   list themes and their URLs
+#   ./theme.sh help                                   show this help
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -99,13 +100,11 @@ cmd_start() {
 
   wait_canvas "$url" && echo "  canvas up: $url" || echo "  ⚠ canvas slow — 'docker logs ${cname}'"
 
-  cat <<EOF
+  # tilde-shorten the workspace path for a clean, copy-pasteable line
+  local ws_disp="$ws"
+  case "$ws" in "$HOME"/*) ws_disp="~${ws#$HOME}" ;; esac
 
-✅ theme '${name}' ready:
-   1) open the workspace in a NEW VSCode window:  code "${ws}"
-   2) open the canvas in your browser:            ${url}
-   3) first time in that window: run /mcp and approve the project 'excalidraw' server
-EOF
+  printf '\ncode %s\n%s\n' "$ws_disp" "$url"
 }
 
 cmd_stop() {
@@ -118,10 +117,20 @@ cmd_stop() {
   fi
 }
 
+cmd_stop_all() {
+  need_docker
+  local names; names="$(docker ps -a --filter "name=excalidraw-" --format '{{.Names}}')"
+  [ -n "$names" ] || { echo "no themes running"; return; }
+  while IFS= read -r cname; do
+    [ -n "$cname" ] || continue
+    docker rm -f "$cname" >/dev/null 2>&1 && echo "stopped & removed theme '${cname#excalidraw-}'"
+  done <<< "$names"
+}
+
 cmd_list() {
   need_docker
   local rows; rows="$(docker ps -a --filter "name=excalidraw-" --format '{{.Names}}|{{.Status}}|{{.Ports}}')"
-  [ -n "$rows" ] || { echo "no themes yet — start one with './setup.sh start <name>'"; return; }
+  [ -n "$rows" ] || { echo "no themes yet — start one with './theme.sh start <name>'"; return; }
   printf '%-16s %-24s %s\n' "THEME" "STATUS" "URL"
   while IFS='|' read -r nm st ports; do
     [ -n "$nm" ] || continue
@@ -139,17 +148,19 @@ A theme = its own canvas (container + port) + a workspace whose project-scoped
 .mcp.json points Claude Code at it. 1 VSCode window = 1 theme.
 
 Usage:
-  ./setup.sh start [name] [--port N] [--dir PATH]   start a theme (default name: main)
-  ./setup.sh stop  [name]                           stop & remove a theme (default: main)
-  ./setup.sh list                                   list themes and their URLs
-  ./setup.sh help                                   show this help
+  ./theme.sh start [name] [--port N] [--dir PATH]   start a theme (default name: main)
+  ./theme.sh stop  [name]                           stop & remove a theme (default: main)
+  ./theme.sh stop-all                               stop & remove all themes
+  ./theme.sh list                                   list themes and their URLs
+  ./theme.sh help                                   show this help
 
 Examples:
-  ./setup.sh start                 # default theme 'main'
-  ./setup.sh start facet           # theme 'facet' on an auto-picked port
-  ./setup.sh start travel
-  ./setup.sh list
-  ./setup.sh stop travel
+  ./theme.sh start                 # default theme 'main'
+  ./theme.sh start food           # theme 'food' on an auto-picked port
+  ./theme.sh start travel
+  ./theme.sh list
+  ./theme.sh stop travel
+  ./theme.sh stop-all
 
 Then: open the printed workspace folder in a new VSCode window, open the canvas
 URL in a browser, and approve the project MCP via /mcp (first time only).
@@ -159,11 +170,12 @@ EOF
 case "${1:-help}" in
   start)          shift; cmd_start "$@" ;;
   stop)           shift; cmd_stop "${1:-}" ;;
+  stop-all)       cmd_stop_all ;;
   list|ls)        cmd_list ;;
   help|-h|--help) usage ;;
   # gentle migration from the old flag-style interface
   --theme)        shift; echo "ℹ '--theme X' is now 'start X'"; cmd_start "$@" ;;
   --list)         echo "ℹ '--list' is now 'list'"; cmd_list ;;
   --stop)         shift; echo "ℹ '--stop X' is now 'stop X'"; cmd_stop "${1:-}" ;;
-  *)              die "unknown command: $1  (try './setup.sh help')" ;;
+  *)              die "unknown command: $1  (try './theme.sh help')" ;;
 esac
