@@ -40,6 +40,33 @@ cd excalidraw-claude-code-setup
 - ブラウザで <http://127.0.0.1:3000> を開く
 - Claude Code をリロード（VSCode: **Reload Window**）して `excalidraw` MCP を読み込む
 
+## 複数テーマを並行で（1 VSCode = 1 テーマ）
+
+テーマごとに **別ポートのキャンバス + そのワークスペース専用の `.mcp.json`** を作り、
+各テーマを別々の VSCode ウィンドウで開けば、会話もキャンバスも独立します。
+
+```bash
+./setup.sh --theme facet      # 例: facet 用（自動で空きポート）
+./setup.sh --theme travel     # 例: 旅行用（別ポート）
+
+./setup.sh --list             # 起動中のテーマ一覧
+./setup.sh --stop travel      # テーマのキャンバスを停止・削除
+```
+
+各テーマで表示される手順:
+
+1. ワークスペースを**新しい VSCode ウィンドウ**で開く（`code ~/excalidraw-themes/<theme>`）
+2. ブラウザでそのテーマのキャンバス（`http://127.0.0.1:<port>`）を開く
+3. そのウィンドウの Claude Code で `/mcp` を実行し、プロジェクトの `excalidraw` サーバーを**承認**（初回のみ）
+
+仕組み:
+
+- 各テーマ＝専用コンテナ `excalidraw-<theme>`（独自ポート、`restart: unless-stopped`）
+- ワークスペース直下の `.mcp.json`（**project スコープ**）が、その MCP を当該ポートのキャンバスへ向ける
+- project スコープは global `~/.claude.json` を上書きするので、ウィンドウごとに別キャンバスへ接続される
+- 既存プロジェクト（例: facet リポ）をテーマにするなら `--dir <path>` でそこに `.mcp.json` を置ける
+  （※ そのリポに `.mcp.json` が追加される点に注意。不要なら `.gitignore` 推奨）
+
 ## 手動でやる場合
 
 ```bash
