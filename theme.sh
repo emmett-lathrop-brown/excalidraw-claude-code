@@ -59,7 +59,7 @@ build_chat_image() {
   docker build -q -t "$CHAT_IMAGE" "$CHAT_DIR" >/dev/null && echo "  built ${CHAT_IMAGE}"
 }
 
-write_mcp_json() { # $1=file $2=netname $3=canvas_container_name
+write_mcp_json() { # $1=file $2=netname $3=canvas_container $4=chat_container
   cat > "$1" <<JSON
 {
   "mcpServers": {
@@ -71,6 +71,16 @@ write_mcp_json() { # $1=file $2=netname $3=canvas_container_name
         "-e", "EXPRESS_SERVER_URL=http://$3:3000",
         "-e", "ENABLE_CANVAS_SYNC=true",
         "$MCP_IMAGE"
+      ]
+    },
+    "excalidraw-chat": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "$2",
+        "-e", "CHAT_API_BASE=http://$4:8080/__chat/api",
+        "$CHAT_IMAGE",
+        "node", "/app/server/mcp.js"
       ]
     }
   }
@@ -137,9 +147,9 @@ cmd_start() {
   echo "▶ pre-pulling MCP image…"
   docker pull "${MCP_IMAGE}" >/dev/null && echo "  pulled ${MCP_IMAGE}"
 
-  write_mcp_json "${ws}/.mcp.json" "${netname}" "${cname}"
+  write_mcp_json "${ws}/.mcp.json" "${netname}" "${cname}" "${ccname}"
   printf 'Excalidraw theme: %s\nCanvas (with chat): %s\n' "$name" "$url" > "${ws}/README.md"
-  echo "  wrote ${ws}/.mcp.json (project-scoped MCP → ${cname} via ${netname})"
+  echo "  wrote ${ws}/.mcp.json (project-scoped MCP → excalidraw + excalidraw-chat)"
 
   wait_canvas "$url" && echo "  canvas up: $url" || echo "  ⚠ canvas slow — 'docker logs ${ccname}'"
 
@@ -186,12 +196,13 @@ cmd_list() {
   need_docker
   local rows; rows="$(docker ps -a --filter "name=excalidraw-chat-" --format '{{.Names}}|{{.Status}}|{{.Ports}}')"
   [ -n "$rows" ] || { echo "no themes yet — start one with './theme.sh start <name>'"; return; }
-  printf '%-16s %-24s %s\n' "THEME" "STATUS" "URL"
+  printf '%-14s %-20s %-10s %s\n' "THEME" "STATUS" "HEALTH" "URL"
   while IFS='|' read -r nm st ports; do
     [ -n "$nm" ] || continue
-    local theme="${nm#excalidraw-chat-}" p
+    local theme="${nm#excalidraw-chat-}" p health
     p="$(printf '%s' "$ports" | grep -oE '0\.0\.0\.0:[0-9]+' | head -1 | cut -d: -f2)"
-    printf '%-16s %-24s %s\n' "$theme" "$st" "${p:+http://127.0.0.1:$p}"
+    health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}—{{end}}' "$nm" 2>/dev/null || echo '—')"
+    printf '%-14s %-20s %-10s %s\n' "$theme" "$st" "$health" "${p:+http://127.0.0.1:$p}"
   done <<< "$rows"
 }
 

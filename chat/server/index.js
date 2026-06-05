@@ -43,6 +43,21 @@ const readJson = (req) => new Promise((resolve, reject) => {
 
 // ---------- Chat API ----------
 async function handleChatAPI(req, res, url) {
+  if (url.pathname === '/__chat/healthz' && req.method === 'GET') {
+    const snap = (() => {
+      try { return fs.statSync(SNAPSHOT_FILE).mtimeMs; } catch { return null; }
+    })();
+    json(res, 200, {
+      ok: true,
+      upstream: UPSTREAM,
+      theme: THEME_NAME || null,
+      threads: state.threads.length,
+      uptime_s: Math.round(process.uptime()),
+      snapshot_mtime: snap,
+    });
+    return true;
+  }
+
   if (url.pathname === '/__chat/chat.js' && req.method === 'GET') {
     try {
       const code = fs.readFileSync(CLIENT_JS_PATH);
