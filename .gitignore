@@ -1,3 +1,10 @@
 .DS_Store
 node_modules/
 *.log
+
+# Claude Code scratch (screenshots, debugging artifacts)
+.claude-scratch/
+.playwright-mcp/
+
+# Per-theme chat persistence (created by theme.sh)
+.chat-data/
