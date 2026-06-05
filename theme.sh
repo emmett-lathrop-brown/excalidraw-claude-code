@@ -177,6 +177,14 @@ cmd_stop() {
   fi
 }
 
+cmd_restart() {
+  need_docker
+  local name="${1:-$DEFAULT_THEME}"
+  echo "▶ restarting theme '${name}'"
+  cmd_stop "$name" >/dev/null
+  cmd_start "$name"
+}
+
 cmd_stop_all() {
   need_docker
   local names; names="$(docker ps -a --filter "name=excalidraw-" --format '{{.Names}}')"
@@ -196,13 +204,20 @@ cmd_list() {
   need_docker
   local rows; rows="$(docker ps -a --filter "name=excalidraw-chat-" --format '{{.Names}}|{{.Status}}|{{.Ports}}')"
   [ -n "$rows" ] || { echo "no themes yet — start one with './theme.sh start <name>'"; return; }
-  printf '%-14s %-20s %-10s %s\n' "THEME" "STATUS" "HEALTH" "URL"
+  printf '%-14s %-20s %-10s %-5s %s\n' "THEME" "STATUS" "HEALTH" "PINS" "URL"
   while IFS='|' read -r nm st ports; do
     [ -n "$nm" ] || continue
-    local theme="${nm#excalidraw-chat-}" p health
+    local theme="${nm#excalidraw-chat-}" p health url pins
     p="$(printf '%s' "$ports" | grep -oE '0\.0\.0\.0:[0-9]+' | head -1 | cut -d: -f2)"
     health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}—{{end}}' "$nm" 2>/dev/null || echo '—')"
-    printf '%-14s %-20s %-10s %s\n' "$theme" "$st" "$health" "${p:+http://127.0.0.1:$p}"
+    url="${p:+http://127.0.0.1:$p}"
+    pins='—'
+    if [ -n "$url" ]; then
+      pins="$(curl -sf --max-time 1 "${url}/__chat/healthz" 2>/dev/null \
+        | sed -nE 's/.*"threads":[[:space:]]*([0-9]+).*/\1/p')"
+      [ -n "$pins" ] || pins='?'
+    fi
+    printf '%-14s %-20s %-10s %-5s %s\n' "$theme" "$st" "$health" "$pins" "$url"
   done <<< "$rows"
 }
 
@@ -214,11 +229,12 @@ A theme = canvas + chat sidecar (own containers + port) + a workspace whose
 project-scoped .mcp.json points Claude Code at it. 1 VSCode window = 1 theme.
 
 Usage:
-  ./theme.sh start [name] [--port N] [--dir PATH]   start a theme (default name: main)
-  ./theme.sh stop  [name]                           stop & remove a theme (default: main)
-  ./theme.sh stop-all                               stop & remove all themes
-  ./theme.sh list                                   list themes and their URLs
-  ./theme.sh help                                   show this help
+  ./theme.sh start   [name] [--port N] [--dir PATH]  start a theme (default name: main)
+  ./theme.sh stop    [name]                          stop & remove a theme (default: main)
+  ./theme.sh restart [name]                          stop and start again (preserves data via snapshot)
+  ./theme.sh stop-all                                stop & remove all themes
+  ./theme.sh list                                    list themes (status, health, pin count, URL)
+  ./theme.sh help                                    show this help
 
 Examples:
   ./theme.sh start                 # default theme 'main'
@@ -239,6 +255,7 @@ EOF
 case "${1:-help}" in
   start)          shift; cmd_start "$@" ;;
   stop)           shift; cmd_stop "${1:-}" ;;
+  restart)        shift; cmd_restart "${1:-}" ;;
   stop-all)       cmd_stop_all ;;
   list|ls)        cmd_list ;;
   help|-h|--help) usage ;;
