@@ -17,7 +17,7 @@
 ## 2. クローンして起動
 
 ```bash
-git clone https://github.com/akira-toriyama/excalidraw-claude-code.git
+git clone https://github.com/emmett-lathrop-brown/excalidraw-claude-code.git
 cd excalidraw-claude-code
 ./theme.sh start food
 ```
